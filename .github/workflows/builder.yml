@@ -38,12 +38,12 @@ jobs:
           - fqbn: arduino:avr:mega
             name: mega
             file_extension: hex
-          - fqbn: esp8266:esp8266:generic
-            name: esp8266
-            file_extension: bin
+          # - fqbn: esp8266:esp8266:generic
+          #   name: esp8266
+          #   file_extension: bin
           - fqbn: esp32:esp32:esp32
             name: esp32
-            file_extension: bin
+            file_extension: merged.bin
           - fqbn: rp2040:rp2040:rpipico
             name: pico
             file_extension: uf2
