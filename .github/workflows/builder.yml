@@ -98,7 +98,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -107,3 +107,7 @@ jobs:
           draft: false
           prerelease: false
           files: artifacts/**/*
+          body: |
+            This is an automated build by GitHub Actions for MemCARDuino v${{ needs.determine_version.outputs.version }}.
+
+            You can check the build logs [here](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
