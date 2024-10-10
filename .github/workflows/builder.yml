@@ -1,0 +1,109 @@
+name: Build MemCARDuino
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  determine_version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ShendoXT/memcarduino
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION=$(grep '#define VERSION' MemCARDuino.ino | awk '{print $3}')
+          MAJOR=$(( ($VERSION & 0xF0) >> 4 ))
+          MINOR=$(( $VERSION & 0x0F ))
+          echo "version=${MAJOR}.${MINOR}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: determine_version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - fqbn: arduino:avr:uno
+            name: atmega328p
+            file_extension: hex
+          - fqbn: arduino:avr:leonardo
+            name: leonardo
+            file_extension: hex
+          - fqbn: arduino:avr:mega
+            name: mega
+            file_extension: hex
+          - fqbn: esp8266:esp8266:generic
+            name: esp8266
+            file_extension: bin
+          - fqbn: esp32:esp32:esp32
+            name: esp32
+            file_extension: bin
+          - fqbn: rp2040:rp2040:rpipico
+            name: pico
+            file_extension: uf2
+          - fqbn: lgt8fx:avr:328
+            name: lgt8f328p
+            file_extension: hex
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ShendoXT/memcarduino
+          path: MemCARDuino
+
+      - name: Compile MemCARDuino
+        uses: arduino/compile-sketches@v1
+        with:
+          platforms: |
+            - name: arduino:avr
+            - name: esp8266:esp8266
+              source-url: https://arduino.esp8266.com/stable/package_esp8266com_index.json
+            - name: esp32:esp32
+              source-url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+            - name: rp2040:rp2040
+              source-url: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+            - name: lgt8fx:avr
+              source-url: https://raw.githubusercontent.com/dbuezas/lgt8fx/master/package_lgt8fx_index.json
+          fqbn: ${{ matrix.fqbn }}
+          sketch-paths: |
+            MemCARDuino/MemCARDuino.ino
+          cli-compile-flags: |
+            - --export-binaries
+
+      - name: Rename file to include board and version
+        run: |
+          BUILD_PATH=$(echo ${{ matrix.fqbn }} | sed 's/:/./g')
+          mv ./MemCARDuino/build/${BUILD_PATH}/MemCARDuino.ino.${{ matrix.file_extension }} ./MemCARDuino/build/${BUILD_PATH}/MemCARDuino_v${{ needs.determine_version.outputs.version }}_${{ matrix.name }}.${{ matrix.file_extension }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MemCARDuino_v${{ needs.determine_version.outputs.version }}_${{ matrix.name }}
+          path: ./MemCARDuino/build/**/MemCARDuino_v${{ needs.determine_version.outputs.version }}_${{ matrix.name }}.${{ matrix.file_extension }}
+
+  release:
+    needs: [determine_version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.determine_version.outputs.version }}
+          name: MemCARDuino v${{ needs.determine_version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: artifacts/**/*
